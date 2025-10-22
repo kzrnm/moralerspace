@@ -1,0 +1,79 @@
+name: Release Fonts
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        args:
+          - option: ""
+            suffix: "-"
+          - option: "--half-width"
+            suffix: "HW-"
+          - option: "--jpdoc"
+            suffix: "JPDOC-"
+          - option: "--half-width --jpdoc"
+            suffix: "HWJPDOC-"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install fontforge
+        run: winget install --accept-source-agreements --id=FontForge.FontForge -e --version 20230101
+
+      - name: Update soruce fonts
+        run: |
+          Invoke-WebRequest (gh release view --repo githubnext/monaspace --json assets | ConvertFrom-Json | % assets | ? name -Like "*nerdfonts*" | ? name -NotLike "*webfont*" | % url) -OutFile monaspace.zip
+          Expand-Archive .\monaspace.zip
+          Get-ChildItem .\monaspace\ -Recurse -File | %{ Rename-Item -Path $_ -NewName ($_.Name -replace "NF-","-") }
+          Copy-Item .\monaspace\NerdFonts\*\* -Destination .\source_fonts\monaspace\
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Build
+        shell: pwsh
+        run: |
+          pip install -r requirements.txt
+          & "C:\Program Files (x86)\FontForgeBuilds\bin\ffpython.exe" .\fontforge_script.py --do-not-delete-build-dir ${{matrix.args.option}}
+          python fonttools_script.py  ${{matrix.args.suffix}}
+
+      - name: Upload Fonts Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: "Moralerspace${{matrix.args.suffix}}"
+          path: build/*
+
+
+  release:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Get Version
+        id: get-version
+        run: |
+          version=$(grep "VERSION" build.ini | cut -d "=" -f 2 | xargs)
+          echo "version=$version" | tee "$GITHUB_OUTPUT" -a
+
+      - name: Download Fonts Artifact
+        uses: actions/download-artifact@v5
+        with:
+          path: build/
+
+      - name: Compress
+        run: dir build/ | % Name | % { Compress-Archive "build/$_/*" -DestinationPath "build/${_}${{ steps.get-version.outputs.version }}.zip" -Verbose }
+        shell: pwsh
+
+      - name: Check tag
+        uses: mukunku/tag-exists-action@v1.6.0
+        id: check-tag
+        with:
+          tag: ${{ steps.get-version.outputs.version }}
+
+
+      - name: Release
+        uses: ncipollo/release-action@v1
+        if: steps.check-tag.outputs.exists != 'true'
+        with:
+          name: moralerspace-fonts ${{ steps.get-version.outputs.version }}
+          tag: ${{ steps.get-version.outputs.version }}
+          body: ${{ steps.get-version.outputs.version }}
+          artifacts: build/*.zip

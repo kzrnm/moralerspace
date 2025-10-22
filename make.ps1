@@ -55,5 +55,5 @@ $move_dir = ".\release_files\build_$timestamp"
 $move_file_src_dest | Foreach-Object {
     $folder_path = "$move_dir\$($_[1])"
     New-Item -ItemType Directory -Force -Path $folder_path
-    Move-Item -Path ".\build\$($_[0])" -Destination $folder_path -Force
+    Copy-Item -Path ".\build\$($_[0])" -Destination $folder_path -Force
 }

@@ -377,7 +377,7 @@ def generate_font(jp_style, eng_style, merged_style, suffix, italic=False):
         visualize_zenkaku_space(jp_font)
 
     # Nerd Fontのグリフを追加する
-    add_nerd_font_glyphs(jp_font, eng_font)
+    # add_nerd_font_glyphs(jp_font, eng_font)
 
     # オプション毎の修飾子を追加する
     variant = HALF_WIDTH_STR if options.get("half-width") else ""
